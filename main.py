@@ -199,6 +199,7 @@
 #     monitor_new_emails(CLIENT_SECRET_FILE)
 
 import os
+import dotenv
 import time
 import base64
 import google.generativeai as genai
@@ -213,6 +214,7 @@ from transformers import pipeline  # For intent classification
 
 from realtime.notion import extract_task_details, add_entry_to_notion
 
+api_key_genai = os.getenv("GENAI_API_KEY")
 NOTION_API_KEY = "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"
 DATABASE_ID = "194588bb4218810cbfd6d66355b3a909"
 NOTION_ENDPOINT = "https://api.notion.com/v1"
@@ -301,7 +303,7 @@ def generate_email_response(email_body, rate_limiter):
         # Wait for an available slot in the rate limiter
         rate_limiter.wait_for_available_slot()
 
-        genai.configure(api_key='AIzaSyDZdkCDQ9ugDLqmFkK0vzWZJUQdEi9cEaQ')
+        genai.configure(api_key=api_key_genai)
         model = genai.GenerativeModel("gemini-pro")
 
         prompt = f"""
@@ -341,7 +343,7 @@ def send_email(service, to, subject, body):
 
 
 def generate_email_summary(email_body):
-    genai.configure(api_key='AIzaSyDZdkCDQ9ugDLqmFkK0vzWZJUQdEi9cEaQ')
+    genai.configure(api_key=api_key_genai)
     model = genai.GenerativeModel("gemini-pro")
     response = model.generate_content(f"Summarize this email: {email_body}")
     return response.text if response else "Summary not available."

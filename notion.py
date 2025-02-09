@@ -1,12 +1,13 @@
 import requests
 import json
 import re
+import os
 from datetime import datetime, timedelta
 import google.generativeai as genai
-
+import dotenv
 # 🔹 Set up Google Gemini API
-GENAI_API_KEY = "AIzaSyDZdkCDQ9ugDLqmFkK0vzWZJUQdEi9cEaQ"
-genai.configure(api_key=GENAI_API_KEY)
+api_key = os.getenv("GENAI_API_KEY")
+genai.configure(api_key=api_key)
 model = genai.GenerativeModel("gemini-pro")
 
 # 🔹 Set up Notion API
