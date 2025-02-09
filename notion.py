@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import google.generativeai as genai
 
 # 🔹 Set up Google Gemini API
-# GENAI_API_KEY = "AIzaSyA5FEiXD7afAQKMw6Hrzq3oIM1O4HRKW-0"
+# GENAI_API_KEY = ""
 genai.configure(api_key=GENAI_API_KEY)
 model = genai.GenerativeModel("gemini-pro")
 
