@@ -301,7 +301,7 @@ def generate_email_response(email_body, rate_limiter):
         # Wait for an available slot in the rate limiter
         rate_limiter.wait_for_available_slot()
 
-        # genai.configure(api_key='')
+        genai.configure(api_key='AIzaSyDZdkCDQ9ugDLqmFkK0vzWZJUQdEi9cEaQ')
         model = genai.GenerativeModel("gemini-pro")
 
         prompt = f"""
@@ -341,7 +341,7 @@ def send_email(service, to, subject, body):
 
 
 def generate_email_summary(email_body):
-    # genai.configure(api_key='')
+    genai.configure(api_key='AIzaSyDZdkCDQ9ugDLqmFkK0vzWZJUQdEi9cEaQ')
     model = genai.GenerativeModel("gemini-pro")
     response = model.generate_content(f"Summarize this email: {email_body}")
     return response.text if response else "Summary not available."
