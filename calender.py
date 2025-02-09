@@ -1,4 +1,9 @@
+import base64
 import json
+from email.mime.text import MIMEText
+from datetime import timezone
+import pytz  # Import pytz for time zone support
+
 from google_apis import create_service
 from datetime import datetime, timedelta
 from transformers import pipeline, AutoTokenizer, AutoModelForTokenClassification
@@ -7,11 +12,12 @@ from dateutil import parser
 from googleapiclient.errors import HttpError
 import pytz
 
-# Google Calendar Setup
+
+
 CLIENT_SECRET = 'google_calender.json'
 API_NAME = 'calendar'  # Corrected typo from 'calender' to 'calendar'
 API_VERSION = 'v3'
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/gmail.send']
 
 def construct_google_calendar_client(client_secret):
     """Constructs a Google Calendar API client."""
@@ -49,11 +55,12 @@ class EventExtractor:
             if match:
                 try:
                     time_str = match.group()
+                    print(f"Extracted time: {time_str}")
                     return parser.parse(time_str)
                 except ValueError:
                     continue
+        print("No time extracted from text.")
         return None
-
     def extract_duration(self, text):
         """Extract duration information from text."""
         duration_patterns = [
@@ -125,7 +132,47 @@ class EventExtractor:
 
         return event_details
 
-    def create_calendar_event(self, event_details):
+    def check_existing_event(self, start_time, end_time):
+        """Check if an event already exists at the specified time."""
+        try:
+            # Convert start_time and end_time to the calendar's time zone
+            time_zone = pytz.timezone('Asia/Kolkata') # Update this to match your calendar's time zone
+            time_min = (start_time - timedelta(minutes=1)).astimezone(time_zone).isoformat()
+            time_max = (end_time + timedelta(minutes=1)).astimezone(time_zone).isoformat()
+
+            print(f"Checking for events between {time_min} and {time_max}")
+
+            events_result = self.calendar_service.events().list(
+                calendarId='primary',
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+            events = events_result.get('items', [])
+            print(f"Found {len(events)} existing events.")
+            return len(events) > 0  # Return True if there are existing events
+        except HttpError as error:
+            print(f"An error occurred while checking for existing events: {error}")
+            return False
+    def send_reply_email(self, sender_email, subject, body):
+        """Send a reply email to the sender."""
+        try:
+            service = create_service(CLIENT_SECRET, 'gmail', 'v1', SCOPES)
+            message = MIMEText(body)
+            message['to'] = sender_email
+            message['subject'] = f"Re: {subject}"
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+
+            sent_message = service.users().messages().send(
+                userId='me',
+                body={'raw': raw_message}
+            ).execute()
+            return f"Reply email sent successfully! Message ID: {sent_message['id']}"
+        except Exception as e:
+            return f"Error sending reply email: {str(e)}"
+
+    def create_calendar_event(self, event_details, sender_email=None, subject=None):
         """Create a calendar event using the extracted details."""
         try:
             # Use the primary calendar (default calendar for the authenticated user)
@@ -134,6 +181,21 @@ class EventExtractor:
             # Parse the start time and calculate the end time
             start_datetime = datetime.strptime(event_details['start_time'], "%Y-%m-%dT%H:%M:%S")
             end_datetime = start_datetime + timedelta(hours=event_details['duration_hours'])
+
+            # Check if an event already exists at the specified time
+            if self.check_existing_event(start_datetime, end_datetime):
+                if sender_email and subject:
+                    # Send a reply email to the sender
+                    reply_body = (
+                        f"Hi,\n\n"
+                        f"An event already exists at the specified time ({start_datetime.strftime('%Y-%m-%d %H:%M')}).\n"
+                        f"Please choose a different time.\n\n"
+                        f"Best regards,\nYour Calendar Assistant"
+                    )
+                    reply_result = self.send_reply_email(sender_email, subject, reply_body)
+                    return reply_result
+                else:
+                    return "An event already exists at the specified time."
 
             # Define the event body
             event_body = {
@@ -159,30 +221,3 @@ class EventExtractor:
         except Exception as e:
             return f"Error creating event: {str(e)}"
 
-def main():
-    try:
-        extractor = EventExtractor()
-
-        # Example usage
-        prompt = input("Please describe the event you want to schedule: ")
-
-        # Extract event details
-        event_details = extractor.extract_event_details(prompt)
-
-        # Print extracted details for verification
-        print("\nExtracted Event Details:")
-        for key, value in event_details.items():
-            print(f"{key}: {value}")
-
-        # Confirm with user
-        confirm = input("\nWould you like to create this event? (yes/no): ")
-        if confirm.lower() == 'yes':
-            result = extractor.create_calendar_event(event_details)
-            print(result)
-        else:
-            print("Event creation cancelled.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-
-if __name__ == "__main__":
-    main()
